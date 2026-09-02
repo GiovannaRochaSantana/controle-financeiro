@@ -12,7 +12,6 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
-  FileBarChart,
   Goal,
   Grid2X2,
   Landmark,
@@ -372,9 +371,6 @@ export default function Home() {
 
         <div className="mt-7 space-y-1 border-t border-white/15 pt-6">
           <p className="px-4 pb-2 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/35">Ferramentas</p>
-          <button type="button" onClick={() => toast.info("Relatórios detalhados estarão disponíveis em breve.")} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-white/55 transition hover:bg-white/5 hover:text-white">
-            <FileBarChart className="h-4 w-4" /> Relatórios
-          </button>
           <button type="button" onClick={() => toast.info("As configurações ficam a um clique de distância.")} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-white/55 transition hover:bg-white/5 hover:text-white">
             <Settings2 className="h-4 w-4" /> Preferências
           </button>
