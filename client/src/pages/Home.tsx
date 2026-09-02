@@ -2,7 +2,7 @@
  * Balanço Editorial — dashboard pessoal de estética Swiss Finance.
  * Princípios: números em primeiro plano, verde-petróleo como âncora, hierarquia editorial e ações objetivas.
  */
-import { useMemo, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
   ArrowDownRight,
@@ -26,6 +26,8 @@ import {
   Target,
   WalletCards,
   X,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import {
   Area,
@@ -177,6 +179,65 @@ function StatCard({
   );
 }
 
+function LoginScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!isEmailValid) {
+      setError("Digite um email válido para continuar.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("A senha precisa ter pelo menos 6 caracteres.");
+      return;
+    }
+    setError("");
+    onSuccess(email);
+  };
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[#F4F7F5] text-[#173631]">
+      <div className="absolute inset-y-0 left-0 hidden w-[42%] overflow-hidden bg-[#0E504C] lg:block">
+        <div className="absolute -left-28 top-1/4 h-[520px] w-[520px] rounded-full border border-white/10" />
+        <div className="absolute -left-10 top-[33%] h-[360px] w-[360px] rounded-full border border-white/[0.08]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0E504C] via-[#0E504C] to-[#073732]" />
+        <div className="relative flex h-full flex-col justify-between p-10 xl:p-14">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-[0.9rem] border border-white/15 bg-white/10"><img src={logoUrl} alt="Símbolo Controle financeiro" className="h-9 w-9 rounded-[0.6rem] p-1" /></span>
+            <span><span className="block text-[0.62rem] font-extrabold uppercase tracking-[0.26em] text-[#64D6B4]">Controle</span><span className="block text-[0.98rem] font-extrabold leading-none tracking-[-0.04em] text-white">financeiro</span></span>
+          </div>
+          <div className="relative max-w-[370px]">
+            <p className="fin-eyebrow text-[#9BE8D1]">Seu dinheiro, com contexto</p>
+            <h1 className="mt-4 font-display text-[3.6rem] leading-[0.98] tracking-[-0.055em] text-white xl:text-[4.4rem]">Clareza para decidir melhor.</h1>
+            <p className="mt-6 max-w-[310px] text-sm leading-relaxed text-white/65">Acompanhe o que entra, o que sai e o que importa para os seus próximos planos.</p>
+          </div>
+          <p className="text-xs font-medium text-white/45">© 2026 Controle financeiro · Feito para uma rotina mais tranquila.</p>
+        </div>
+      </div>
+
+      <main className="relative flex min-h-screen items-center justify-center px-5 py-10 lg:ml-[42%] lg:px-10">
+        <div className="w-full max-w-[430px]">
+          <div className="mb-10 flex items-center gap-3 lg:hidden"><span className="flex h-10 w-10 items-center justify-center rounded-[0.75rem] bg-[#0E504C]"><img src={logoUrl} alt="Símbolo Controle financeiro" className="h-8 w-8 rounded p-1" /></span><span><span className="block text-[0.58rem] font-extrabold uppercase tracking-[0.23em] text-[#0E504C]">Controle</span><span className="block text-sm font-extrabold leading-none tracking-[-0.04em] text-[#173631]">financeiro</span></span></div>
+          <div className="mb-8"><p className="fin-eyebrow">Área segura</p><h2 className="mt-2 font-display text-[2.6rem] leading-none tracking-[-0.05em] text-[#173631]">Bom ter você de volta.</h2><p className="mt-4 text-sm leading-relaxed text-[#6D7D77]">Entre para acompanhar o seu mês com mais clareza.</p></div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="space-y-2"><label htmlFor="login-email" className="text-xs font-extrabold text-[#456259]">Email</label><Input id="login-email" type="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} placeholder="voce@email.com" className="h-12 border-[#D5E3DE] bg-white px-4 text-sm focus-visible:ring-[#0E504C]" /></div>
+            <div className="space-y-2"><div className="flex items-center justify-between"><label htmlFor="login-password" className="text-xs font-extrabold text-[#456259]">Senha</label><button type="button" onClick={() => toast.info("Em breve você poderá recuperar sua senha por email.")} className="text-xs font-bold text-[#0E504C] hover:underline">Esqueci minha senha</button></div><div className="relative"><Input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} placeholder="Mínimo de 6 caracteres" className="h-12 border-[#D5E3DE] bg-white px-4 pr-12 text-sm focus-visible:ring-[#0E504C]" /><button type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#7D8E87] hover:bg-[#EDF4F1] hover:text-[#0E504C]">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
+            {error && <p role="alert" className="border-l-2 border-[#E98470] bg-[#FDF0EC] px-3 py-2.5 text-xs font-semibold text-[#B65343]">{error}</p>}
+            <Button type="submit" className="h-12 w-full bg-[#0E504C] text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(14,80,76,0.18)] hover:bg-[#0A403D]">Entrar no meu painel <ChevronRight className="ml-2 h-4 w-4" /></Button>
+          </form>
+          <p className="mt-8 text-center text-xs text-[#82918D]">Ainda não tem uma conta? <button type="button" onClick={() => toast.info("O cadastro estará disponível em breve.")} className="font-extrabold text-[#0E504C] hover:underline">Criar acesso</button></p>
+          <p className="mt-10 text-center text-[0.68rem] leading-relaxed text-[#9AA7A2]">Ao entrar, você concorda com os termos de uso e a política de privacidade.</p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
 function TransactionRow({ transaction }: { transaction: Transaction }) {
   const positive = transaction.kind === "income";
   return (
@@ -200,6 +261,8 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
 }
 
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
   const [page, setPage] = useState<Page>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -264,6 +327,10 @@ export default function Home() {
     setPage(nextPage);
     setMenuOpen(false);
   };
+
+  if (!isAuthenticated) {
+    return <LoginScreen onSuccess={(email) => { setUserEmail(email); setIsAuthenticated(true); toast.success("Login realizado. Seu painel está pronto."); }} />;
+  }
 
   const summarySubtitle = page === "dashboard"
     ? "Uma leitura clara do seu dinheiro em setembro."
@@ -343,7 +410,7 @@ export default function Home() {
               <Bell className="h-4 w-4" />
               <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#E98470]" />
             </button>
-            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2D4BF] text-xs font-extrabold text-[#734535] shadow-sm" onClick={() => toast.info("Perfil de Marina.")}>MC</button>
+            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2D4BF] text-xs font-extrabold text-[#734535] shadow-sm" onClick={() => toast.info(`Perfil conectado: ${userEmail}`)}>MC</button>
           </div>
         </header>
 
