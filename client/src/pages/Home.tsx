@@ -1,25 +1,523 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import { Streamdown } from 'streamdown';
-
 /**
- * All content in this page are only for example, replace with your own feature implementation
- * When building pages, remember your instructions in Frontend Best Practices, Design Guide and Common Pitfalls
+ * Balanço Editorial — dashboard pessoal de estética Swiss Finance.
+ * Princípios: números em primeiro plano, verde-petróleo como âncora, hierarquia editorial e ações objetivas.
  */
-export default function Home() {
-  // If theme is switchable in App.tsx, we can implement theme toggling like this:
-  // const { theme, toggleTheme } = useTheme();
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  ArrowDownRight,
+  ArrowUpRight,
+  Bell,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  CircleDollarSign,
+  FileBarChart,
+  Goal,
+  Grid2X2,
+  Landmark,
+  Menu,
+  MoreHorizontal,
+  Plus,
+  ReceiptText,
+  Search,
+  Settings2,
+  Sparkles,
+  Target,
+  WalletCards,
+  X,
+} from "lucide-react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+
+type Page = "dashboard" | "expenses" | "income" | "planning";
+type TransactionKind = "income" | "expense";
+
+type Transaction = {
+  id: number;
+  title: string;
+  category: string;
+  date: string;
+  value: number;
+  kind: TransactionKind;
+};
+
+const logoUrl = "/manus-storage/controle-financeiro-logo_183b61ff.png";
+const balanceTextureUrl = "/manus-storage/controle-financeiro-balance-texture_ac1f0ce9.jpg";
+const incomeArtUrl = "/manus-storage/controle-financeiro-income-art_e6c57489.jpg";
+const goalArtUrl = "/manus-storage/controle-financeiro-goal-art_2eae342b.jpg";
+
+const monthlyData = [
+  { month: "Abr", entradas: 4200, saídas: 2600 },
+  { month: "Mai", entradas: 4800, saídas: 3100 },
+  { month: "Jun", entradas: 4650, saídas: 2800 },
+  { month: "Jul", entradas: 5100, saídas: 3400 },
+  { month: "Ago", entradas: 4800, saídas: 2450 },
+  { month: "Set", entradas: 5340, saídas: 2920 },
+];
+
+const categoryData = [
+  { name: "Moradia", value: 35, color: "#0E504C" },
+  { name: "Alimentação", value: 24, color: "#64D6B4" },
+  { name: "Mobilidade", value: 18, color: "#C49B43" },
+  { name: "Lazer", value: 13, color: "#E98470" },
+  { name: "Outros", value: 10, color: "#D7E4DC" },
+];
+
+const initialTransactions: Transaction[] = [
+  { id: 1, title: "Supermercado Vila", category: "Alimentação", date: "Hoje, 10:42", value: 186.4, kind: "expense" },
+  { id: 2, title: "Projeto Horizonte", category: "Freelance", date: "Hoje, 09:18", value: 840, kind: "income" },
+  { id: 3, title: "Assinatura de música", category: "Lazer", date: "Ontem, 19:01", value: 21.9, kind: "expense" },
+  { id: 4, title: "Pagamento mensal", category: "Salário", date: "01 set, 08:00", value: 4500, kind: "income" },
+  { id: 5, title: "Conta de energia", category: "Moradia", date: "31 ago, 14:36", value: 142.75, kind: "expense" },
+];
+
+const currency = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+  minimumFractionDigits: 2,
+});
+
+function formatCurrency(value: number) {
+  return currency.format(value);
+}
+
+function formatCompact(value: number) {
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value);
+}
+
+function NavItem({
+  active,
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  icon: typeof Grid2X2;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`group flex w-full items-center gap-3 border-l-2 px-4 py-3 text-left text-sm font-semibold transition-all duration-200 ${
+        active
+          ? "border-[#64D6B4] bg-white/10 text-white"
+          : "border-transparent text-white/55 hover:border-white/35 hover:bg-white/5 hover:text-white"
+      }`}
+    >
+      <Icon className={`h-4 w-4 ${active ? "text-[#64D6B4]" : "text-white/55 group-hover:text-white"}`} strokeWidth={1.8} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  note,
+  icon: Icon,
+  tone,
+}: {
+  label: string;
+  value: string;
+  note: string;
+  icon: typeof WalletCards;
+  tone: "teal" | "mint" | "coral" | "gold";
+}) {
+  const tones = {
+    teal: "bg-[#DDEDE8] text-[#0E504C]",
+    mint: "bg-[#DDF8ED] text-[#218766]",
+    coral: "bg-[#FBE4DE] text-[#C85F4D]",
+    gold: "bg-[#F7EEDB] text-[#9C742B]",
+  };
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <main>
-        {/* Example: lucide-react for icons */}
-        <Loader2 className="animate-spin" />
-        Example Page
-        {/* Example: Streamdown for markdown rendering */}
-        <Streamdown>Any **markdown** content</Streamdown>
-        <Button variant="default">Example Button</Button>
+    <article className="fin-panel group relative overflow-hidden p-5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="fin-eyebrow">{label}</p>
+        <span className={`flex h-9 w-9 items-center justify-center rounded-full ${tones[tone]}`}>
+          <Icon className="h-4 w-4" strokeWidth={1.8} />
+        </span>
+      </div>
+      <p className="mt-5 font-display text-[1.65rem] leading-none tracking-[-0.045em] text-[#173631] sm:text-[1.9rem]">{value}</p>
+      <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-[#73817E]">
+        <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" />
+        {note}
+      </p>
+      <div className="absolute bottom-0 left-0 h-1 w-0 bg-[#64D6B4] transition-all duration-300 group-hover:w-full" />
+    </article>
+  );
+}
+
+function TransactionRow({ transaction }: { transaction: Transaction }) {
+  const positive = transaction.kind === "income";
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[#DDE7E3] py-4 last:border-0 md:grid-cols-[minmax(0,1.35fr)_minmax(100px,0.7fr)_120px_112px] md:items-center">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${positive ? "bg-[#DEF8ED] text-[#218766]" : "bg-[#FCE8E2] text-[#C85F4D]"}`}>
+          {positive ? <ArrowDownRight className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-[#173631]">{transaction.title}</p>
+          <p className="mt-0.5 text-xs text-[#74827F] md:hidden">{transaction.category} · {transaction.date}</p>
+        </div>
+      </div>
+      <p className="hidden text-xs font-medium text-[#687773] md:block">{transaction.category}</p>
+      <p className="hidden text-xs font-medium text-[#687773] md:block">{transaction.date}</p>
+      <p className={`text-right font-mono text-sm font-bold ${positive ? "text-[#218766]" : "text-[#C85F4D]"}`}>
+        {positive ? "+" : "−"}{formatCurrency(transaction.value)}
+      </p>
+    </div>
+  );
+}
+
+export default function Home() {
+  const [page, setPage] = useState<Page>("dashboard");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [transactionType, setTransactionType] = useState<TransactionKind>("expense");
+  const [description, setDescription] = useState("");
+  const [category, setCategory] = useState("");
+  const [amount, setAmount] = useState("");
+  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+
+  const totals = useMemo(() => {
+    const newIncome = transactions.filter((item) => item.id > 5 && item.kind === "income").reduce((sum, item) => sum + item.value, 0);
+    const newExpenses = transactions.filter((item) => item.id > 5 && item.kind === "expense").reduce((sum, item) => sum + item.value, 0);
+    return {
+      income: 5340 + newIncome,
+      expenses: 2920 + newExpenses,
+      balance: 12480 + newIncome - newExpenses,
+    };
+  }, [transactions]);
+
+  const pageTitle: Record<Page, string> = {
+    dashboard: "Visão geral",
+    expenses: "Minhas despesas",
+    income: "Minhas receitas",
+    planning: "Planejamento",
+  };
+
+  const filteredTransactions = page === "expenses"
+    ? transactions.filter((transaction) => transaction.kind === "expense")
+    : page === "income"
+      ? transactions.filter((transaction) => transaction.kind === "income")
+      : transactions;
+
+  const openTransaction = (type: TransactionKind) => {
+    setTransactionType(type);
+    setDescription("");
+    setCategory("");
+    setAmount("");
+    setDialogOpen(true);
+  };
+
+  const createTransaction = () => {
+    const normalizedAmount = Number(amount.replace(",", "."));
+    if (!description.trim() || !category.trim() || !normalizedAmount || normalizedAmount <= 0) {
+      toast.error("Preencha a descrição, categoria e um valor válido.");
+      return;
+    }
+
+    const transaction: Transaction = {
+      id: Date.now(),
+      title: description.trim(),
+      category: category.trim(),
+      date: "Agora",
+      value: normalizedAmount,
+      kind: transactionType,
+    };
+    setTransactions((current) => [transaction, ...current]);
+    setDialogOpen(false);
+    toast.success(transactionType === "income" ? "Receita registrada no seu saldo." : "Despesa registrada no seu saldo.");
+  };
+
+  const changePage = (nextPage: Page) => {
+    setPage(nextPage);
+    setMenuOpen(false);
+  };
+
+  const summarySubtitle = page === "dashboard"
+    ? "Uma leitura clara do seu dinheiro em setembro."
+    : page === "expenses"
+      ? "Confira cada saída e preserve seu ritmo financeiro."
+      : page === "income"
+        ? "Acompanhe seus recebimentos e próximas entradas."
+        : "Transforme intenção em uma rota financeira possível.";
+
+  return (
+    <div className="relative min-h-screen bg-[#F4F7F5] text-[#173631] lg:flex">
+      {menuOpen && <button aria-label="Fechar menu" className="fixed inset-0 z-30 bg-[#073732]/50 backdrop-blur-[1px] lg:hidden" onClick={() => setMenuOpen(false)} />}
+
+      <aside className={`fixed inset-y-0 left-0 z-40 flex w-[286px] flex-col overflow-hidden bg-[#0E504C] px-4 pb-5 pt-6 text-white transition-transform duration-300 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:translate-x-0 ${menuOpen ? "translate-x-0" : "-translate-x-full"}`}>
+        <div className="pointer-events-none absolute inset-y-0 left-0 w-1 bg-[#64D6B4]" />
+        <div className="pointer-events-none absolute -right-16 top-20 h-44 w-44 rounded-full border border-white/10" />
+        <div className="pointer-events-none absolute -right-7 top-28 h-28 w-28 rounded-full border border-white/[0.08]" />
+        <div className="flex items-center justify-between px-3">
+          <button type="button" className="flex items-center gap-3 text-left" onClick={() => changePage("dashboard")}>
+            <span className="relative flex h-11 w-11 items-center justify-center rounded-[0.9rem] border border-white/15 bg-white/10 shadow-[0_8px_18px_rgba(0,0,0,.12)]"><img src={logoUrl} alt="Símbolo Controle financeiro" className="h-9 w-9 rounded-[0.6rem] p-1" /></span>
+            <span>
+              <span className="block text-[0.62rem] font-extrabold uppercase tracking-[0.26em] text-[#64D6B4]">Controle</span>
+              <span className="block text-[0.98rem] font-extrabold leading-none tracking-[-0.04em] text-white">financeiro</span>
+            </span>
+          </button>
+          <button type="button" className="rounded-full p-2 text-white/65 hover:bg-white/10 lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Fechar menu">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="mx-3 mt-8 border-t border-white/15" />
+        <nav className="mt-5 space-y-1" aria-label="Navegação principal">
+          <p className="px-4 pb-2 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/35">Seu espaço</p>
+          <NavItem active={page === "dashboard"} icon={Grid2X2} label="Visão geral" onClick={() => changePage("dashboard")} />
+          <NavItem active={page === "expenses"} icon={ReceiptText} label="Minhas despesas" onClick={() => changePage("expenses")} />
+          <NavItem active={page === "income"} icon={CircleDollarSign} label="Minhas receitas" onClick={() => changePage("income")} />
+          <NavItem active={page === "planning"} icon={Goal} label="Planejamento" onClick={() => changePage("planning")} />
+        </nav>
+
+        <div className="mt-7 space-y-1 border-t border-white/15 pt-6">
+          <p className="px-4 pb-2 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/35">Ferramentas</p>
+          <button type="button" onClick={() => toast.info("Relatórios detalhados estarão disponíveis em breve.")} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-white/55 transition hover:bg-white/5 hover:text-white">
+            <FileBarChart className="h-4 w-4" /> Relatórios
+          </button>
+          <button type="button" onClick={() => toast.info("As configurações ficam a um clique de distância.")} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-white/55 transition hover:bg-white/5 hover:text-white">
+            <Settings2 className="h-4 w-4" /> Preferências
+          </button>
+        </div>
+
+        <div className="mt-auto overflow-hidden rounded-[1.15rem] border border-white/12 bg-white/[0.08] p-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#64D6B4]" />
+            <div>
+              <p className="text-xs font-bold text-white">Um passo de cada vez</p>
+              <p className="mt-1 text-[0.69rem] leading-relaxed text-white/58">Você já registrou 74% do que planejou para setembro.</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main className="min-h-screen min-w-0 flex-1">
+        <header className="sticky top-0 z-20 flex min-h-[84px] items-center justify-between border-b border-[#DFE8E4] bg-[#F4F7F5]/90 px-5 backdrop-blur-xl sm:px-8 lg:px-10">
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={() => setMenuOpen(true)} aria-label="Abrir menu" className="rounded-full border border-[#D5E2DD] bg-white p-2 text-[#0E504C] lg:hidden">
+              <Menu className="h-5 w-5" />
+            </button>
+            <div>
+              <p className="fin-eyebrow hidden sm:block">Controle financeiro</p>
+              <h1 className="font-display text-[1.65rem] leading-none tracking-[-0.04em] text-[#173631] sm:mt-1 sm:text-[2rem]">{pageTitle[page]}</h1>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button type="button" className="hidden items-center gap-2 border border-[#D7E4DF] bg-white px-3 py-2 text-xs font-bold text-[#49635C] transition hover:border-[#0E504C] sm:flex" onClick={() => toast.info("Exibindo dados de setembro de 2026.")}>
+              <CalendarDays className="h-3.5 w-3.5 text-[#0E504C]" /> Setembro 2026 <ChevronDown className="h-3.5 w-3.5" />
+            </button>
+            <button type="button" aria-label="Notificações" onClick={() => toast.info("Você não tem novas notificações.")} className="relative rounded-full border border-[#D7E4DF] bg-white p-2.5 text-[#426059] transition hover:border-[#0E504C] hover:text-[#0E504C]">
+              <Bell className="h-4 w-4" />
+              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#E98470]" />
+            </button>
+            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2D4BF] text-xs font-extrabold text-[#734535] shadow-sm" onClick={() => toast.info("Perfil de Marina.")}>MC</button>
+          </div>
+        </header>
+
+        <div className="px-5 py-7 sm:px-8 sm:py-9 lg:px-10">
+          <section className="mb-8 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+            <div>
+              <p className="max-w-xl text-sm leading-relaxed text-[#64756F]">{summarySubtitle}</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {page !== "income" && <Button onClick={() => openTransaction("expense")} variant="outline" className="h-10 border-[#C9D9D4] bg-white px-4 text-xs font-bold text-[#254D45] hover:border-[#0E504C] hover:bg-[#EEF7F3]"> <ArrowUpRight className="mr-1.5 h-4 w-4" /> Nova despesa</Button>}
+              {page !== "expenses" && <Button onClick={() => openTransaction("income")} className="h-10 bg-[#0E504C] px-4 text-xs font-bold text-white shadow-[0_8px_20px_rgba(14,80,76,0.16)] hover:bg-[#0A403D]"> <Plus className="mr-1.5 h-4 w-4" /> Nova receita</Button>}
+            </div>
+          </section>
+
+          {page === "dashboard" && (
+            <>
+              <section className="grid gap-4 xl:grid-cols-[minmax(0,1.55fr)_repeat(2,minmax(190px,0.72fr))]">
+                <article className="relative min-h-[206px] overflow-hidden rounded-[1.45rem] bg-[#0E504C] p-6 text-white shadow-[0_16px_35px_rgba(14,80,76,0.16)] sm:p-7">
+                  <div className="absolute inset-0 bg-cover bg-center opacity-55" style={{ backgroundImage: `url(${balanceTextureUrl})` }} />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#0E504C] via-[#0E504C]/93 to-[#0E504C]/45" />
+                  <div className="relative flex h-full flex-col justify-between">
+                    <div className="flex items-center justify-between">
+                      <span className="fin-eyebrow text-white/58">Saldo disponível</span>
+                      <span className="flex items-center gap-1.5 border border-white/15 bg-white/10 px-2.5 py-1 text-[0.64rem] font-bold uppercase tracking-[0.14em] text-[#B7F1DF]"> <span className="h-1.5 w-1.5 rounded-full bg-[#64D6B4]" /> Atualizado</span>
+                    </div>
+                    <div>
+                      <p className="font-display text-[2.65rem] leading-none tracking-[-0.055em] sm:text-[3.35rem]">{formatCurrency(totals.balance)}</p>
+                      <p className="mt-3 text-xs font-medium text-white/65">Em todas as suas contas registradas.</p>
+                    </div>
+                  </div>
+                </article>
+                <StatCard label="Entradas no mês" value={formatCurrency(totals.income)} note="8,6% acima de agosto" icon={ArrowDownRight} tone="mint" />
+                <StatCard label="Saídas no mês" value={formatCurrency(totals.expenses)} note="54% do limite mensal" icon={ArrowUpRight} tone="coral" />
+              </section>
+
+              <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.85fr)]">
+                <article className="fin-panel p-5 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="fin-eyebrow">Fluxo do mês</p>
+                      <h2 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[#173631]">Entradas e saídas</h2>
+                    </div>
+                    <span className="flex items-center gap-2 border border-[#DDE8E4] bg-[#F8FAF9] px-3 py-1.5 text-[0.66rem] font-bold uppercase tracking-[0.12em] text-[#557069]">Últimos 6 meses <ChevronDown className="h-3.5 w-3.5" /></span>
+                  </div>
+                  <div className="mt-6 h-[244px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={monthlyData} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="incomeFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#64D6B4" stopOpacity={0.38} /><stop offset="100%" stopColor="#64D6B4" stopOpacity={0} /></linearGradient>
+                          <linearGradient id="expenseFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#E98470" stopOpacity={0.2} /><stop offset="100%" stopColor="#E98470" stopOpacity={0} /></linearGradient>
+                        </defs>
+                        <XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#82918D", fontSize: 11, fontWeight: 700 }} dy={9} />
+                        <YAxis tickFormatter={(value) => `R$${value / 1000}k`} tickLine={false} axisLine={false} tick={{ fill: "#82918D", fontSize: 10 }} />
+                        <Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ border: "1px solid #D9E6E1", borderRadius: 12, boxShadow: "0 12px 25px rgba(25, 60, 52, .1)", fontSize: 12 }} />
+                        <Area type="monotone" dataKey="entradas" stroke="#0E504C" strokeWidth={2.5} fill="url(#incomeFill)" isAnimationActive={false} />
+                        <Area type="monotone" dataKey="saídas" stroke="#E98470" strokeWidth={2.25} fill="url(#expenseFill)" isAnimationActive={false} />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 border-t border-[#E1EBE7] pt-4 text-xs font-semibold text-[#60736D]">
+                    <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#0E504C]" /> Entradas</span>
+                    <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#E98470]" /> Saídas</span>
+                    <span className="ml-auto text-[#218766]">Resultado previsto: +{formatCurrency(2420)}</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-3 divide-x divide-[#E1EBE7] border-t border-[#E1EBE7] pt-4">
+                    <div className="pr-3"><p className="fin-eyebrow">Melhor mês</p><p className="mt-1 font-mono text-xs font-bold text-[#173631]">Set · {formatCompact(5340)}</p></div>
+                    <div className="px-3"><p className="fin-eyebrow">Média poupada</p><p className="mt-1 font-mono text-xs font-bold text-[#173631]">{formatCurrency(2210)}</p></div>
+                    <div className="pl-3"><p className="fin-eyebrow">Próximo marco</p><p className="mt-1 text-xs font-bold text-[#218766]">Meta em 74%</p></div>
+                  </div>
+                </article>
+
+                <article className="fin-panel p-5 sm:p-6">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="fin-eyebrow">Distribuição</p>
+                      <h2 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[#173631]">Para onde foi</h2>
+                    </div>
+                    <button type="button" aria-label="Opções de distribuição" onClick={() => toast.info("Você pode detalhar as categorias no relatório.")} className="rounded-full p-1.5 text-[#75847F] hover:bg-[#EDF4F1]"><MoreHorizontal className="h-5 w-5" /></button>
+                  </div>
+                  <div className="mt-3 flex flex-col items-center gap-3 sm:flex-row">
+                    <div className="h-[172px] w-[172px] shrink-0">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie data={categoryData} dataKey="value" nameKey="name" innerRadius={52} outerRadius={72} paddingAngle={3} stroke="none">
+                            {categoryData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+                          </Pie>
+                          <Tooltip formatter={(value: number) => `${value}%`} contentStyle={{ border: "1px solid #D9E6E1", borderRadius: 10, fontSize: 12 }} />
+                          <text x="50%" y="47%" textAnchor="middle" className="fill-[#173631] text-[18px] font-bold">{formatCompact(totals.expenses)}</text>
+                          <text x="50%" y="59%" textAnchor="middle" className="fill-[#82918D] text-[9px] font-bold">DESPESAS</text>
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                    <div className="w-full space-y-2.5">
+                      {categoryData.slice(0, 4).map((category) => <div key={category.name} className="flex items-center justify-between gap-3 text-xs"><span className="flex items-center gap-2 font-semibold text-[#547068]"><i className="h-2 w-2 rounded-full" style={{ backgroundColor: category.color }} />{category.name}</span><strong className="font-mono text-[#173631]">{category.value}%</strong></div>)}
+                    </div>
+                  </div>
+                </article>
+              </section>
+
+              <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.85fr)]">
+                <article className="fin-panel p-5 sm:p-6">
+                  <div className="flex items-end justify-between gap-3">
+                    <div><p className="fin-eyebrow">Atividade recente</p><h2 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[#173631]">Movimentações</h2></div>
+                    <button type="button" onClick={() => changePage("expenses")} className="flex items-center gap-1 text-xs font-bold text-[#0E504C] hover:underline">Ver tudo <ChevronRight className="h-3.5 w-3.5" /></button>
+                  </div>
+                  <div className="mt-5">
+                    <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(100px,0.7fr)_120px_112px] gap-3 border-b border-[#DDE7E3] pb-3 text-[0.62rem] font-bold uppercase tracking-[0.13em] text-[#85938E] md:grid"><span>Movimentação</span><span>Categoria</span><span>Data</span><span className="text-right">Valor</span></div>
+                    {transactions.slice(0, 5).map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />)}
+                  </div>
+                </article>
+
+                <article className="relative min-h-[285px] overflow-hidden rounded-[1.35rem] bg-[#F1E8D7] p-6">
+                  <img src={goalArtUrl} alt="Colagem abstrata que representa a evolução de uma meta" className="absolute inset-0 h-full w-full object-cover object-right opacity-75 mix-blend-multiply" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#F4EBD9] via-[#F4EBD9]/93 to-[#F4EBD9]/10" />
+                  <div className="relative flex h-full max-w-[250px] flex-col justify-between">
+                    <div>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C49B43]/20 text-[#937028]"><Target className="h-5 w-5" /></span>
+                      <p className="mt-4 fin-eyebrow text-[#806A46]">Meta do semestre</p>
+                      <h2 className="mt-1 font-display text-[1.75rem] leading-[1.05] tracking-[-0.045em] text-[#3E3728]">Reserva de tranquilidade</h2>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex items-end justify-between gap-3"><strong className="font-mono text-sm text-[#4D432E]">R$ 8.460</strong><span className="text-xs font-bold text-[#786B50]">71%</span></div>
+                      <div className="h-2 bg-[#D9CBAE]"><div className="h-full w-[71%] bg-[#C49B43]" /></div>
+                      <p className="mt-3 text-xs leading-relaxed text-[#786B50]">Faltam R$ 3.540 para cumprir sua meta até dezembro.</p>
+                    </div>
+                  </div>
+                </article>
+              </section>
+            </>
+          )}
+
+          {(page === "expenses" || page === "income") && (
+            <>
+              <section className="grid gap-4 md:grid-cols-3">
+                <StatCard label={page === "expenses" ? "Despesas do mês" : "Receitas do mês"} value={formatCurrency(page === "expenses" ? totals.expenses : totals.income)} note={page === "expenses" ? "Em 9 lançamentos" : "Em 5 recebimentos"} icon={page === "expenses" ? ArrowUpRight : ArrowDownRight} tone={page === "expenses" ? "coral" : "mint"} />
+                <StatCard label={page === "expenses" ? "Limite restante" : "Previsto até o fim"} value={page === "expenses" ? formatCurrency(2480) : formatCurrency(1250)} note={page === "expenses" ? "46% do orçamento" : "Projetos e recorrências"} icon={page === "expenses" ? WalletCards : Landmark} tone={page === "expenses" ? "gold" : "teal"} />
+                <article className="relative min-h-[155px] overflow-hidden rounded-[1.25rem] bg-[#E5F3EC] p-5">
+                  {page === "income" && <img src={incomeArtUrl} alt="Composição abstrata associada a entradas financeiras" className="absolute inset-0 h-full w-full object-cover object-right opacity-35 mix-blend-multiply" />}
+                  <div className="relative"><p className="fin-eyebrow text-[#52736A]">Leitura rápida</p><p className="mt-3 max-w-[15rem] font-display text-xl leading-tight tracking-[-0.04em] text-[#1F5146]">{page === "expenses" ? "Alimentação lidera suas despesas no período." : "Seu principal recebimento chegou dentro do prazo."}</p></div>
+                </article>
+              </section>
+
+              <section className="fin-panel mt-4 p-5 sm:p-6">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+                  <div><p className="fin-eyebrow">Lançamentos de setembro</p><h2 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[#173631]">{page === "expenses" ? "Saídas registradas" : "Entradas registradas"}</h2></div>
+                  <div className="flex gap-2"><div className="flex items-center gap-2 border border-[#DAE5E1] bg-[#FAFCFB] px-3 text-xs text-[#77908A]"><Search className="h-3.5 w-3.5" /> <input aria-label="Buscar lançamento" placeholder="Buscar" className="w-20 bg-transparent py-2 outline-none placeholder:text-[#8A9995]" /></div><button type="button" onClick={() => toast.info("Os filtros detalhados estarão disponíveis em breve.")} className="border border-[#DAE5E1] bg-white px-3 text-xs font-bold text-[#516B63]">Filtrar</button></div>
+                </div>
+                <div className="mt-6"><div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(100px,0.7fr)_120px_112px] gap-3 border-b border-[#DDE7E3] pb-3 text-[0.62rem] font-bold uppercase tracking-[0.13em] text-[#85938E] md:grid"><span>Movimentação</span><span>Categoria</span><span>Data</span><span className="text-right">Valor</span></div>{filteredTransactions.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />)}</div>
+              </section>
+            </>
+          )}
+
+          {page === "planning" && (
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(330px,0.75fr)]">
+              <article className="fin-panel p-6 sm:p-7"><p className="fin-eyebrow">Mapa de setembro</p><h2 className="mt-1 font-display text-[2rem] tracking-[-0.045em] text-[#173631]">Seu dinheiro tem destino.</h2><p className="mt-3 max-w-xl text-sm leading-relaxed text-[#667772]">Você manteve o saldo positivo e está perto de concluir sua reserva. O próximo passo é proteger o valor que ainda pode ser poupado neste mês.</p><div className="mt-8 grid gap-4 sm:grid-cols-3"><div className="border-l-2 border-[#0E504C] bg-[#F2F7F4] p-4"><p className="fin-eyebrow">Disponível</p><p className="mt-2 font-display text-2xl tracking-[-0.04em]">{formatCurrency(2420)}</p></div><div className="border-l-2 border-[#C49B43] bg-[#FBF7EE] p-4"><p className="fin-eyebrow">Para metas</p><p className="mt-2 font-display text-2xl tracking-[-0.04em]">{formatCurrency(1250)}</p></div><div className="border-l-2 border-[#E98470] bg-[#FDF3F0] p-4"><p className="fin-eyebrow">Compromissos</p><p className="mt-2 font-display text-2xl tracking-[-0.04em]">{formatCurrency(720)}</p></div></div><div className="mt-9 h-[230px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}><XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#82918D", fontSize: 11, fontWeight: 700 }} /><YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value / 1000}k`} tick={{ fill: "#82918D", fontSize: 10 }} /><Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ border: "1px solid #D9E6E1", borderRadius: 12, fontSize: 12 }} /><Bar dataKey="entradas" fill="#0E504C" radius={[4, 4, 0, 0]} /><Bar dataKey="saídas" fill="#E9A695" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></article>
+              <article className="relative overflow-hidden rounded-[1.35rem] bg-[#EAF4EE] p-6"><img src={incomeArtUrl} alt="Arte abstrata de planejamento financeiro" className="absolute inset-0 h-full w-full object-cover opacity-35 mix-blend-multiply" /><div className="relative flex h-full flex-col"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 text-[#0E504C]"><Sparkles className="h-5 w-5" /></span><p className="mt-5 fin-eyebrow text-[#4D6B62]">Próximo passo</p><h3 className="mt-1 font-display text-[1.8rem] leading-[1.02] tracking-[-0.04em] text-[#1B4A40]">Separe sua reserva antes de gastar.</h3><p className="mt-3 max-w-[260px] text-sm leading-relaxed text-[#4E6F65]">Ao proteger R$ 350 nesta semana, sua meta chega a 74% de conclusão.</p><Button onClick={() => toast.success("Lembrete de reserva agendado para sexta-feira.")} className="mt-auto w-fit bg-[#0E504C] text-xs font-bold text-white hover:bg-[#0A403D]">Criar lembrete</Button></div></article>
+            </section>
+          )}
+        </div>
       </main>
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md border-[#D7E4DF] bg-[#FBFCFB] p-0 shadow-2xl sm:rounded-[1.35rem]">
+          <div className="border-b border-[#DFE9E5] px-6 pb-5 pt-6">
+            <DialogHeader><p className="fin-eyebrow">Novo lançamento</p><DialogTitle className="mt-1 font-display text-[1.9rem] tracking-[-0.045em] text-[#173631]">{transactionType === "income" ? "Registrar receita" : "Registrar despesa"}</DialogTitle><DialogDescription className="mt-1 text-sm text-[#687A74]">O saldo e os resumos serão atualizados imediatamente.</DialogDescription></DialogHeader>
+          </div>
+          <div className="space-y-5 px-6 py-5">
+            <div className="grid grid-cols-2 border border-[#D6E4DF] bg-white p-1"><button type="button" onClick={() => setTransactionType("expense")} className={`px-3 py-2 text-xs font-bold transition ${transactionType === "expense" ? "bg-[#FCE5DE] text-[#B84F3E]" : "text-[#70817C]"}`}>Despesa</button><button type="button" onClick={() => setTransactionType("income")} className={`px-3 py-2 text-xs font-bold transition ${transactionType === "income" ? "bg-[#DEF8ED] text-[#1A795B]" : "text-[#70817C]"}`}>Receita</button></div>
+            <div className="space-y-2"><Label htmlFor="description" className="text-xs font-bold text-[#456259]">Descrição</Label><Input id="description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder={transactionType === "income" ? "Ex.: Projeto Aurora" : "Ex.: Mercado da semana"} className="h-11 border-[#D5E3DE] bg-white focus-visible:ring-[#0E504C]" /></div>
+            <div className="grid grid-cols-2 gap-3"><div className="space-y-2"><Label htmlFor="category" className="text-xs font-bold text-[#456259]">Categoria</Label><Input id="category" value={category} onChange={(event) => setCategory(event.target.value)} placeholder={transactionType === "income" ? "Freelance" : "Alimentação"} className="h-11 border-[#D5E3DE] bg-white focus-visible:ring-[#0E504C]" /></div><div className="space-y-2"><Label htmlFor="amount" className="text-xs font-bold text-[#456259]">Valor (R$)</Label><Input id="amount" type="number" min="0" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0,00" className="h-11 border-[#D5E3DE] bg-white focus-visible:ring-[#0E504C]" /></div></div>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-[#DFE9E5] bg-[#F5F8F6] px-6 py-4"><Button variant="outline" onClick={() => setDialogOpen(false)} className="border-[#D3E1DC] bg-white text-xs font-bold text-[#486259]">Cancelar</Button><Button onClick={createTransaction} className="bg-[#0E504C] text-xs font-bold text-white hover:bg-[#0A403D]">Salvar lançamento</Button></div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
