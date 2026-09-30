@@ -39,6 +39,7 @@ import {
   YAxis,
 } from "recharts";
 import { Button } from "@/components/ui/button";
+import { trpc } from "@/lib/trpc";
 import {
   Dialog,
   DialogContent,
@@ -190,13 +191,18 @@ function StatCard({
   );
 }
 
-function LoginScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
+type AuthPayload = { email: string; password: string; name?: string };
+
+function LoginScreen({ onSubmit, isSubmitting }: { onSubmit: (payload: AuthPayload, mode: "login" | "register") => Promise<string | null>; isSubmitting: boolean }) {
+  const [mode, setMode] = useState<"login" | "register">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [confirmation, setConfirmation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
     if (!isEmailValid) {
@@ -207,8 +213,17 @@ function LoginScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
       setError("A senha precisa ter pelo menos 6 caracteres.");
       return;
     }
+    if (mode === "register" && name.trim().length < 2) {
+      setError("Digite seu nome para criar o acesso.");
+      return;
+    }
+    if (mode === "register" && password !== confirmation) {
+      setError("As senhas precisam ser iguais.");
+      return;
+    }
     setError("");
-    onSuccess(email);
+    const result = await onSubmit({ email, password, name: name.trim() || undefined }, mode);
+    if (result) setError(result);
   };
 
   return (
@@ -234,14 +249,16 @@ function LoginScreen({ onSuccess }: { onSuccess: (email: string) => void }) {
       <main className="relative flex min-h-screen items-center justify-center px-5 py-10 lg:ml-[42%] lg:px-10">
         <div className="w-full max-w-[430px]">
           <div className="mb-10 flex items-center gap-3 lg:hidden"><span className="flex h-10 w-10 items-center justify-center rounded-[0.75rem] bg-[#0E504C]"><img src={logoUrl} alt="Símbolo Controle financeiro" className="h-8 w-8 rounded p-1" /></span><span><span className="block text-[0.58rem] font-extrabold uppercase tracking-[0.23em] text-[#0E504C]">Controle</span><span className="block text-sm font-extrabold leading-none tracking-[-0.04em] text-[#173631]">financeiro</span></span></div>
-          <div className="mb-8"><p className="fin-eyebrow">Área segura</p><h2 className="mt-2 font-display text-[2.6rem] leading-none tracking-[-0.05em] text-[#173631]">Bom ter você de volta.</h2><p className="mt-4 text-sm leading-relaxed text-[#6D7D77]">Entre para acompanhar o seu mês com mais clareza.</p></div>
+          <div className="mb-8"><p className="fin-eyebrow">Área segura</p><h2 className="mt-2 font-display text-[2.6rem] leading-none tracking-[-0.05em] text-[#173631]">{mode === "login" ? "Bom ter você de volta." : "Crie seu acesso."}</h2><p className="mt-4 text-sm leading-relaxed text-[#6D7D77]">{mode === "login" ? "Entre para acompanhar o seu mês com mais clareza." : "Cadastre-se para salvar suas movimentações com segurança."}</p></div>
           <form onSubmit={handleSubmit} className="space-y-5">
+            {mode === "register" && <div className="space-y-2"><label htmlFor="register-name" className="text-xs font-extrabold text-[#456259]">Nome</label><Input id="register-name" type="text" autoComplete="name" value={name} onChange={(event) => { setName(event.target.value); setError(""); }} placeholder="Como podemos chamar você?" className="h-12 border-[#D5E3DE] bg-white px-4 text-sm focus-visible:ring-[#0E504C]" /></div>}
             <div className="space-y-2"><label htmlFor="login-email" className="text-xs font-extrabold text-[#456259]">Email</label><Input id="login-email" type="email" autoComplete="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(""); }} placeholder="voce@email.com" className="h-12 border-[#D5E3DE] bg-white px-4 text-sm focus-visible:ring-[#0E504C]" /></div>
-            <div className="space-y-2"><div className="flex items-center justify-between"><label htmlFor="login-password" className="text-xs font-extrabold text-[#456259]">Senha</label><button type="button" onClick={() => toast.info("Em breve você poderá recuperar sua senha por email.")} className="text-xs font-bold text-[#0E504C] hover:underline">Esqueci minha senha</button></div><div className="relative"><Input id="login-password" type={showPassword ? "text" : "password"} autoComplete="current-password" value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} placeholder="Mínimo de 6 caracteres" className="h-12 border-[#D5E3DE] bg-white px-4 pr-12 text-sm focus-visible:ring-[#0E504C]" /><button type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#7D8E87] hover:bg-[#EDF4F1] hover:text-[#0E504C]">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
+            <div className="space-y-2"><div className="flex items-center justify-between"><label htmlFor="login-password" className="text-xs font-extrabold text-[#456259]">Senha</label>{mode === "login" && <button type="button" onClick={() => toast.info("A recuperação de senha será adicionada em breve.")} className="text-xs font-bold text-[#0E504C] hover:underline">Esqueci minha senha</button>}</div><div className="relative"><Input id="login-password" type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} value={password} onChange={(event) => { setPassword(event.target.value); setError(""); }} placeholder="Mínimo de 6 caracteres" className="h-12 border-[#D5E3DE] bg-white px-4 pr-12 text-sm focus-visible:ring-[#0E504C]" /><button type="button" aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} onClick={() => setShowPassword((current) => !current)} className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1.5 text-[#7D8E87] hover:bg-[#EDF4F1] hover:text-[#0E504C]">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div></div>
+            {mode === "register" && <div className="space-y-2"><label htmlFor="register-confirmation" className="text-xs font-extrabold text-[#456259]">Confirmar senha</label><Input id="register-confirmation" type="password" autoComplete="new-password" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(""); }} placeholder="Repita sua senha" className="h-12 border-[#D5E3DE] bg-white px-4 text-sm focus-visible:ring-[#0E504C]" /></div>}
             {error && <p role="alert" className="border-l-2 border-[#E98470] bg-[#FDF0EC] px-3 py-2.5 text-xs font-semibold text-[#B65343]">{error}</p>}
-            <Button type="submit" className="h-12 w-full bg-[#0E504C] text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(14,80,76,0.18)] hover:bg-[#0A403D]">Entrar no meu painel <ChevronRight className="ml-2 h-4 w-4" /></Button>
+            <Button type="submit" disabled={isSubmitting} className="h-12 w-full bg-[#0E504C] text-sm font-extrabold text-white shadow-[0_10px_24px_rgba(14,80,76,0.18)] hover:bg-[#0A403D]">{isSubmitting ? "Aguarde..." : mode === "login" ? "Entrar no meu painel" : "Criar minha conta"} {!isSubmitting && <ChevronRight className="ml-2 h-4 w-4" />}</Button>
           </form>
-          <p className="mt-8 text-center text-xs text-[#82918D]">Ainda não tem uma conta? <button type="button" onClick={() => toast.info("O cadastro estará disponível em breve.")} className="font-extrabold text-[#0E504C] hover:underline">Criar acesso</button></p>
+          <p className="mt-8 text-center text-xs text-[#82918D]">{mode === "login" ? "Ainda não tem uma conta?" : "Já tem uma conta?"} <button type="button" onClick={() => { setMode((current) => current === "login" ? "register" : "login"); setError(""); }} className="font-extrabold text-[#0E504C] hover:underline">{mode === "login" ? "Criar acesso" : "Entrar"}</button></p>
           <p className="mt-10 text-center text-[0.68rem] leading-relaxed text-[#9AA7A2]">Ao entrar, você concorda com os termos de uso e a política de privacidade.</p>
         </div>
       </main>
@@ -272,8 +289,12 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
 }
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
+  const authQuery = trpc.auth.me.useQuery(undefined, { retry: false });
+  const loginMutation = trpc.auth.login.useMutation();
+  const registerMutation = trpc.auth.register.useMutation();
+  const logoutMutation = trpc.auth.logout.useMutation({
+    onSuccess: () => authQuery.refetch(),
+  });
   const [page, setPage] = useState<Page>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
   const [monthMenuOpen, setMonthMenuOpen] = useState(false);
@@ -363,8 +384,28 @@ export default function Home() {
     toast.success(`Visualizando ${month}.`);
   };
 
-  if (!isAuthenticated) {
-    return <LoginScreen onSuccess={(email) => { setUserEmail(email); setIsAuthenticated(true); toast.success("Login realizado. Seu painel está pronto."); }} />;
+  const handleAuthSubmit = async (payload: AuthPayload, mode: "login" | "register") => {
+    try {
+      if (mode === "register") {
+        await registerMutation.mutateAsync({ email: payload.email, password: payload.password, name: payload.name ?? "" });
+        toast.success("Conta criada. Seu painel está pronto.");
+      } else {
+        await loginMutation.mutateAsync({ email: payload.email, password: payload.password });
+        toast.success("Login realizado. Seu painel está pronto.");
+      }
+      await authQuery.refetch();
+      return null;
+    } catch (error) {
+      return error instanceof Error ? error.message : "Não foi possível concluir o acesso.";
+    }
+  };
+
+  if (authQuery.isLoading) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#F4F7F5] text-sm font-semibold text-[#0E504C]">Carregando seu acesso...</div>;
+  }
+
+  if (!authQuery.data) {
+    return <LoginScreen onSubmit={handleAuthSubmit} isSubmitting={loginMutation.isPending || registerMutation.isPending} />;
   }
 
   const summarySubtitle = page === "dashboard"
@@ -447,7 +488,7 @@ export default function Home() {
               <Bell className="h-4 w-4" />
               <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#E98470]" />
             </button>
-            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2D4BF] text-xs font-extrabold text-[#734535] shadow-sm" onClick={() => toast.info(`Perfil conectado: ${userEmail}`)}>MC</button>
+            <button type="button" className="flex h-9 w-9 items-center justify-center rounded-full bg-[#F2D4BF] text-xs font-extrabold text-[#734535] shadow-sm" onClick={() => logoutMutation.mutate()} aria-label="Sair da conta">{(authQuery.data.name ?? authQuery.data.email ?? "U").slice(0, 2).toUpperCase()}</button>
           </div>
         </header>
 

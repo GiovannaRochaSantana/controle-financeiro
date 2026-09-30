@@ -89,4 +89,37 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+export async function getUserByEmail(email: string) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database is not configured");
+  }
+
+  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  return result[0];
+}
+
+export async function createEmailUser(input: {
+  openId: string;
+  email: string;
+  name: string;
+  passwordHash: string;
+}) {
+  const db = await getDb();
+  if (!db) {
+    throw new Error("Database is not configured");
+  }
+
+  const [created] = await db.insert(users).values({
+    openId: input.openId,
+    email: input.email,
+    name: input.name,
+    passwordHash: input.passwordHash,
+    loginMethod: "email",
+  }).$returningId();
+
+  return getUserByOpenId(input.openId).then((user) => {
+    if (!user || !created) throw new Error("User could not be created");
+    return user;
+  });
+}
