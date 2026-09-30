@@ -91,6 +91,21 @@ const initialTransactions: Transaction[] = [
   { id: 5, title: "Conta de energia", category: "Moradia", date: "31 ago, 14:36", value: 142.75, kind: "expense" },
 ];
 
+const availableMonths = [
+  "Janeiro 2026",
+  "Fevereiro 2026",
+  "Março 2026",
+  "Abril 2026",
+  "Maio 2026",
+  "Junho 2026",
+  "Julho 2026",
+  "Agosto 2026",
+  "Setembro 2026",
+  "Outubro 2026",
+  "Novembro 2026",
+  "Dezembro 2026",
+];
+
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -261,6 +276,8 @@ export default function Home() {
   const [userEmail, setUserEmail] = useState("");
   const [page, setPage] = useState<Page>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [monthMenuOpen, setMonthMenuOpen] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState("Setembro 2026");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [transactionType, setTransactionType] = useState<TransactionKind>("expense");
   const [description, setDescription] = useState("");
@@ -340,6 +357,12 @@ export default function Home() {
     setMenuOpen(false);
   };
 
+  const changeMonth = (month: string) => {
+    setSelectedMonth(month);
+    setMonthMenuOpen(false);
+    toast.success(`Visualizando ${month}.`);
+  };
+
   if (!isAuthenticated) {
     return <LoginScreen onSuccess={(email) => { setUserEmail(email); setIsAuthenticated(true); toast.success("Login realizado. Seu painel está pronto."); }} />;
   }
@@ -405,9 +428,21 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
-            <button type="button" className="hidden items-center gap-2 border border-[#D7E4DF] bg-white px-3 py-2 text-xs font-bold text-[#49635C] transition hover:border-[#0E504C] sm:flex" onClick={() => toast.info("Exibindo dados de setembro de 2026.")}>
-              <CalendarDays className="h-3.5 w-3.5 text-[#0E504C]" /> Setembro 2026 <ChevronDown className="h-3.5 w-3.5" />
-            </button>
+            <div className="relative hidden sm:block">
+              <button type="button" aria-haspopup="listbox" aria-expanded={monthMenuOpen} className="flex items-center gap-2 border border-[#D7E4DF] bg-white px-3 py-2 text-xs font-bold text-[#49635C] transition hover:border-[#0E504C]" onClick={() => setMonthMenuOpen((current) => !current)}>
+                <CalendarDays className="h-3.5 w-3.5 text-[#0E504C]" /> {selectedMonth} <ChevronDown className={`h-3.5 w-3.5 transition-transform ${monthMenuOpen ? "rotate-180" : ""}`} />
+              </button>
+              {monthMenuOpen && (
+                <div role="listbox" aria-label="Selecionar mês" className="absolute right-0 top-[calc(100%+0.5rem)] z-30 max-h-72 w-48 overflow-auto rounded-xl border border-[#D7E4DF] bg-white p-1.5 shadow-[0_16px_35px_rgba(32,69,59,0.14)]">
+                  {availableMonths.map((month) => (
+                    <button key={month} type="button" role="option" aria-selected={selectedMonth === month} onClick={() => changeMonth(month)} className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs font-bold transition ${selectedMonth === month ? "bg-[#E6F4EE] text-[#0E504C]" : "text-[#61766E] hover:bg-[#F2F7F4] hover:text-[#0E504C]"}`}>
+                      {month}
+                      {selectedMonth === month && <span className="h-1.5 w-1.5 rounded-full bg-[#64D6B4]" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <button type="button" aria-label="Notificações" onClick={() => toast.info("Você não tem novas notificações.")} className="relative rounded-full border border-[#D7E4DF] bg-white p-2.5 text-[#426059] transition hover:border-[#0E504C] hover:text-[#0E504C]">
               <Bell className="h-4 w-4" />
               <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-[#E98470]" />
