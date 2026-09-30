@@ -6,7 +6,7 @@ import * as db from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { sdk } from "./_core/sdk";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router } from "./_core/trpc";
+import { protectedProcedure, publicProcedure, router } from "./_core/trpc";
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email("Digite um email válido."),
@@ -15,6 +15,17 @@ const credentialsSchema = z.object({
 
 const registerSchema = credentialsSchema.extend({
   name: z.string().trim().min(2, "Digite seu nome."),
+});
+
+const transactionInputSchema = z.object({
+  type: z.enum(["income", "expense"]),
+  description: z.string().trim().min(1).max(180),
+  category: z.string().trim().min(1).max(80),
+  amount: z.number().positive().max(100000000),
+});
+
+const depositInputSchema = z.object({
+  amount: z.number().positive().max(100000000),
 });
 
 export function hashPassword(password: string) {
@@ -79,13 +90,27 @@ export const appRouter = router({
       } as const;
     }),
   }),
-
-  // TODO: add feature routers here, e.g.
-  // todo: router({
-  //   list: protectedProcedure.query(({ ctx }) =>
-  //     db.getUserTodos(ctx.user.id)
-  //   ),
-  // }),
+  transactions: router({
+    list: protectedProcedure.query(({ ctx }) => db.getTransactionsByUser(ctx.user.id)),
+    create: protectedProcedure.input(transactionInputSchema).mutation(({ input, ctx }) => db.createTransaction({
+      userId: ctx.user.id,
+      type: input.type,
+      description: input.description,
+      category: input.category,
+      amountCents: Math.round(input.amount * 100),
+    })),
+  }),
+  savings: router({
+    goal: protectedProcedure.query(({ ctx }) => db.getOrCreateSavingsGoal(ctx.user.id)),
+    deposit: protectedProcedure.input(depositInputSchema).mutation(async ({ input, ctx }) => {
+      const goal = await db.getOrCreateSavingsGoal(ctx.user.id);
+      return db.addSavingsDeposit({
+        userId: ctx.user.id,
+        goalId: goal.id,
+        amountCents: Math.round(input.amount * 100),
+      });
+    }),
+  }),
 });
 
 export type AppRouter = typeof appRouter;

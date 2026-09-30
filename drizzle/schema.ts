@@ -26,4 +26,40 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-// TODO: Add your tables here
+export const transactions = mysqlTable("transactions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  type: mysqlEnum("type", ["income", "expense"]).notNull(),
+  description: varchar("description", { length: 180 }).notNull(),
+  category: varchar("category", { length: 80 }).notNull(),
+  amountCents: int("amountCents").notNull(),
+  transactionDate: timestamp("transactionDate").defaultNow().notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type Transaction = typeof transactions.$inferSelect;
+export type InsertTransaction = typeof transactions.$inferInsert;
+
+export const savingsGoals = mysqlTable("savingsGoals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull().unique(),
+  name: varchar("name", { length: 120 }).notNull().default("Reserva de tranquilidade"),
+  targetAmountCents: int("targetAmountCents").notNull().default(1200000),
+  currentAmountCents: int("currentAmountCents").notNull().default(0),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SavingsGoal = typeof savingsGoals.$inferSelect;
+export type InsertSavingsGoal = typeof savingsGoals.$inferInsert;
+
+export const savingsDeposits = mysqlTable("savingsDeposits", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  goalId: int("goalId").notNull(),
+  amountCents: int("amountCents").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SavingsDeposit = typeof savingsDeposits.$inferSelect;
+export type InsertSavingsDeposit = typeof savingsDeposits.$inferInsert;

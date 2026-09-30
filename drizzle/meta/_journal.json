@@ -15,6 +15,13 @@
       "when": 1790801560476,
       "tag": "0001_conscious_luckman",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1790801831799,
+      "tag": "0002_small_wild_pack",
+      "breakpoints": true
     }
   ]
 }

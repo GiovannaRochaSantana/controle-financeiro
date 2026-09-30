@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertTransaction, InsertUser, savingsDeposits, savingsGoals, transactions, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -122,4 +122,42 @@ export async function createEmailUser(input: {
     if (!user || !created) throw new Error("User could not be created");
     return user;
   });
+}
+
+export async function getTransactionsByUser(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not configured");
+  return db.select().from(transactions).where(eq(transactions.userId, userId)).orderBy(desc(transactions.transactionDate), desc(transactions.createdAt));
+}
+
+export async function createTransaction(input: Omit<InsertTransaction, "id" | "createdAt">) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not configured");
+  const [created] = await db.insert(transactions).values(input).$returningId();
+  if (!created) throw new Error("Transaction could not be created");
+  const result = await db.select().from(transactions).where(eq(transactions.id, created.id)).limit(1);
+  return result[0];
+}
+
+export async function getOrCreateSavingsGoal(userId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not configured");
+  let [goal] = await db.select().from(savingsGoals).where(eq(savingsGoals.userId, userId)).limit(1);
+  if (!goal) {
+    await db.insert(savingsGoals).values({ userId });
+    [goal] = await db.select().from(savingsGoals).where(eq(savingsGoals.userId, userId)).limit(1);
+  }
+  if (!goal) throw new Error("Savings goal could not be created");
+  return goal;
+}
+
+export async function addSavingsDeposit(input: { userId: number; goalId: number; amountCents: number }) {
+  const db = await getDb();
+  if (!db) throw new Error("Database is not configured");
+  const [goal] = await db.select().from(savingsGoals).where(eq(savingsGoals.id, input.goalId)).limit(1);
+  if (!goal || goal.userId !== input.userId) throw new Error("Savings goal not found");
+  const [created] = await db.insert(savingsDeposits).values(input).$returningId();
+  await db.update(savingsGoals).set({ currentAmountCents: goal.currentAmountCents + input.amountCents }).where(eq(savingsGoals.id, input.goalId));
+  if (!created) throw new Error("Savings deposit could not be created");
+  return getOrCreateSavingsGoal(input.userId);
 }

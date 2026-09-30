@@ -58,6 +58,7 @@ type Transaction = {
   title: string;
   category: string;
   date: string;
+  timestamp: Date;
   value: number;
   kind: TransactionKind;
 };
@@ -67,30 +68,7 @@ const balanceTextureUrl = "/manus-storage/controle-financeiro-balance-texture_ac
 const incomeArtUrl = "/manus-storage/controle-financeiro-income-art_e6c57489.jpg";
 const goalArtUrl = "/manus-storage/controle-financeiro-goal-art_2eae342b.jpg";
 
-const monthlyData = [
-  { month: "Abr", entradas: 4200, saídas: 2600 },
-  { month: "Mai", entradas: 4800, saídas: 3100 },
-  { month: "Jun", entradas: 4650, saídas: 2800 },
-  { month: "Jul", entradas: 5100, saídas: 3400 },
-  { month: "Ago", entradas: 4800, saídas: 2450 },
-  { month: "Set", entradas: 5340, saídas: 2920 },
-];
-
-const categoryData = [
-  { name: "Moradia", value: 35, color: "#0E504C" },
-  { name: "Alimentação", value: 24, color: "#64D6B4" },
-  { name: "Mobilidade", value: 18, color: "#C49B43" },
-  { name: "Lazer", value: 13, color: "#E98470" },
-  { name: "Outros", value: 10, color: "#D7E4DC" },
-];
-
-const initialTransactions: Transaction[] = [
-  { id: 1, title: "Supermercado Vila", category: "Alimentação", date: "Hoje, 10:42", value: 186.4, kind: "expense" },
-  { id: 2, title: "Projeto Horizonte", category: "Freelance", date: "Hoje, 09:18", value: 840, kind: "income" },
-  { id: 3, title: "Assinatura de música", category: "Lazer", date: "Ontem, 19:01", value: 21.9, kind: "expense" },
-  { id: 4, title: "Pagamento mensal", category: "Salário", date: "01 set, 08:00", value: 4500, kind: "income" },
-  { id: 5, title: "Conta de energia", category: "Moradia", date: "31 ago, 14:36", value: 142.75, kind: "expense" },
-];
+const categoryColors = ["#0E504C", "#64D6B4", "#C49B43", "#E98470", "#D7E4DC"];
 
 const availableMonths = [
   "Janeiro 2026",
@@ -289,11 +267,24 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
 }
 
 export default function Home() {
+  const utils = trpc.useUtils();
   const authQuery = trpc.auth.me.useQuery(undefined, { retry: false });
   const loginMutation = trpc.auth.login.useMutation();
   const registerMutation = trpc.auth.register.useMutation();
   const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => authQuery.refetch(),
+    onSuccess: async () => {
+      utils.transactions.list.setData(undefined, undefined);
+      utils.savings.goal.setData(undefined, undefined);
+      await authQuery.refetch();
+    },
+  });
+  const transactionsQuery = trpc.transactions.list.useQuery(undefined, { enabled: Boolean(authQuery.data), retry: false });
+  const savingsQuery = trpc.savings.goal.useQuery(undefined, { enabled: Boolean(authQuery.data), retry: false });
+  const createTransactionMutation = trpc.transactions.create.useMutation({
+    onSuccess: () => transactionsQuery.refetch(),
+  });
+  const depositMutation = trpc.savings.deposit.useMutation({
+    onSuccess: () => savingsQuery.refetch(),
   });
   const [page, setPage] = useState<Page>("dashboard");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -304,21 +295,63 @@ export default function Home() {
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
-  const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
-  const [cofrinhoAmount, setCofrinhoAmount] = useState(8460);
   const [cofrinhoDeposit, setCofrinhoDeposit] = useState("");
 
-  const cofrinhoGoal = 12000;
+  const transactions: Transaction[] = (transactionsQuery.data ?? []).map((item) => {
+    const timestamp = new Date(item.transactionDate);
+    return {
+      id: item.id,
+      title: item.description,
+      category: item.category,
+      date: timestamp.toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
+      timestamp,
+      value: item.amountCents / 100,
+      kind: item.type,
+    };
+  });
+  const cofrinhoAmount = (savingsQuery.data?.currentAmountCents ?? 0) / 100;
+  const cofrinhoGoal = (savingsQuery.data?.targetAmountCents ?? 1200000) / 100;
   const cofrinhoProgress = Math.min(100, Math.round((cofrinhoAmount / cofrinhoGoal) * 100));
+  const visibleTransactions = useMemo(() => {
+    const year = Number(selectedMonth.split(" ")[1]);
+    const month = availableMonths.indexOf(selectedMonth) % 12;
+    return transactions.filter((item) => item.timestamp.getFullYear() === year && item.timestamp.getMonth() === month);
+  }, [transactions, selectedMonth]);
+  const categoryData = useMemo(() => {
+    const byCategory = visibleTransactions.filter((item) => item.kind === "expense").reduce<Record<string, number>>((result, item) => {
+      result[item.category] = (result[item.category] ?? 0) + item.value;
+      return result;
+    }, {});
+    const total = Object.values(byCategory).reduce((sum, value) => sum + value, 0);
+    if (!total) return [{ name: "Sem despesas", value: 100, color: "#D7E4DC" }];
+    return Object.entries(byCategory).sort(([, first], [, second]) => second - first).slice(0, 5).map(([name, value], index) => ({
+      name,
+      value: Math.round((value / total) * 100),
+      color: categoryColors[index] ?? categoryColors[categoryColors.length - 1],
+    }));
+  }, [visibleTransactions]);
 
   const totals = useMemo(() => {
-    const newIncome = transactions.filter((item) => item.id > 5 && item.kind === "income").reduce((sum, item) => sum + item.value, 0);
-    const newExpenses = transactions.filter((item) => item.id > 5 && item.kind === "expense").reduce((sum, item) => sum + item.value, 0);
+    const income = visibleTransactions.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.value, 0);
+    const expenses = visibleTransactions.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.value, 0);
     return {
-      income: 5340 + newIncome,
-      expenses: 2920 + newExpenses,
-      balance: 12480 + newIncome - newExpenses,
+      income,
+      expenses,
+      balance: income - expenses,
     };
+  }, [visibleTransactions]);
+
+  const monthlyData = useMemo(() => {
+    const today = new Date();
+    return Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(today.getFullYear(), today.getMonth() - 5 + index, 1);
+      const monthTransactions = transactions.filter((item) => item.timestamp.getFullYear() === date.getFullYear() && item.timestamp.getMonth() === date.getMonth());
+      return {
+        month: date.toLocaleDateString("pt-BR", { month: "short" }).replace(".", ""),
+        entradas: monthTransactions.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.value, 0),
+        saídas: monthTransactions.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.value, 0),
+      };
+    });
   }, [transactions]);
 
   const pageTitle: Record<Page, string> = {
@@ -329,10 +362,10 @@ export default function Home() {
   };
 
   const filteredTransactions = page === "expenses"
-    ? transactions.filter((transaction) => transaction.kind === "expense")
+    ? visibleTransactions.filter((transaction) => transaction.kind === "expense")
     : page === "income"
-      ? transactions.filter((transaction) => transaction.kind === "income")
-      : transactions;
+      ? visibleTransactions.filter((transaction) => transaction.kind === "income")
+      : visibleTransactions;
 
   const openTransaction = (type: TransactionKind) => {
     setTransactionType(type);
@@ -342,35 +375,35 @@ export default function Home() {
     setDialogOpen(true);
   };
 
-  const createTransaction = () => {
+  const createTransaction = async () => {
     const normalizedAmount = Number(amount.replace(",", "."));
     if (!description.trim() || !category.trim() || !normalizedAmount || normalizedAmount <= 0) {
       toast.error("Preencha a descrição, categoria e um valor válido.");
       return;
     }
 
-    const transaction: Transaction = {
-      id: Date.now(),
-      title: description.trim(),
-      category: category.trim(),
-      date: "Agora",
-      value: normalizedAmount,
-      kind: transactionType,
-    };
-    setTransactions((current) => [transaction, ...current]);
-    setDialogOpen(false);
-    toast.success(transactionType === "income" ? "Receita registrada no seu saldo." : "Despesa registrada no seu saldo.");
+    try {
+      await createTransactionMutation.mutateAsync({ type: transactionType, description: description.trim(), category: category.trim(), amount: normalizedAmount });
+      setDialogOpen(false);
+      toast.success(transactionType === "income" ? "Receita salva no seu saldo." : "Despesa salva no seu saldo.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível salvar o lançamento.");
+    }
   };
 
-  const addToCofrinho = () => {
+  const addToCofrinho = async () => {
     const normalizedAmount = Number(cofrinhoDeposit.replace(",", "."));
     if (!normalizedAmount || normalizedAmount <= 0) {
       toast.error("Digite um valor válido para guardar.");
       return;
     }
-    setCofrinhoAmount((current) => current + normalizedAmount);
-    setCofrinhoDeposit("");
-    toast.success(`${formatCurrency(normalizedAmount)} guardados no seu cofrinho.`);
+    try {
+      await depositMutation.mutateAsync({ amount: normalizedAmount });
+      setCofrinhoDeposit("");
+      toast.success(`${formatCurrency(normalizedAmount)} guardados no seu cofrinho.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Não foi possível guardar o valor.");
+    }
   };
 
   const changePage = (nextPage: Page) => {
@@ -409,7 +442,7 @@ export default function Home() {
   }
 
   const summarySubtitle = page === "dashboard"
-    ? "Uma leitura clara do seu dinheiro em setembro."
+    ? `Uma leitura clara do seu dinheiro em ${selectedMonth.toLowerCase()}.`
     : page === "expenses"
       ? "Confira cada saída e preserve seu ritmo financeiro."
       : page === "income"
@@ -451,7 +484,7 @@ export default function Home() {
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#64D6B4]" />
             <div>
               <p className="text-xs font-bold text-white">Um passo de cada vez</p>
-              <p className="mt-1 text-[0.69rem] leading-relaxed text-white/58">Você já registrou 74% do que planejou para setembro.</p>
+              <p className="mt-1 text-[0.69rem] leading-relaxed text-white/58">Você já guardou {cofrinhoProgress}% da meta do seu cofrinho.</p>
             </div>
           </div>
         </div>
@@ -520,8 +553,8 @@ export default function Home() {
                     </div>
                   </div>
                 </article>
-                <StatCard label="Entradas no mês" value={formatCurrency(totals.income)} note="8,6% acima de agosto" icon={ArrowDownRight} tone="mint" />
-                <StatCard label="Saídas no mês" value={formatCurrency(totals.expenses)} note="54% do limite mensal" icon={ArrowUpRight} tone="coral" />
+                <StatCard label="Entradas no mês" value={formatCurrency(totals.income)} note={`${visibleTransactions.filter((item) => item.kind === "income").length} lançamentos salvos`} icon={ArrowDownRight} tone="mint" />
+                <StatCard label="Saídas no mês" value={formatCurrency(totals.expenses)} note={`${visibleTransactions.filter((item) => item.kind === "expense").length} lançamentos salvos`} icon={ArrowUpRight} tone="coral" />
               </section>
 
               <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(330px,0.85fr)]">
@@ -551,12 +584,12 @@ export default function Home() {
                   <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2 border-t border-[#E1EBE7] pt-4 text-xs font-semibold text-[#60736D]">
                     <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#0E504C]" /> Entradas</span>
                     <span className="flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[#E98470]" /> Saídas</span>
-                    <span className="ml-auto text-[#218766]">Resultado previsto: +{formatCurrency(2420)}</span>
+                    <span className="ml-auto text-[#218766]">Resultado atual: {formatCurrency(totals.balance)}</span>
                   </div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#E1EBE7] border-t border-[#E1EBE7] pt-4">
-                    <div className="pr-3"><p className="fin-eyebrow">Melhor mês</p><p className="mt-1 font-mono text-xs font-bold text-[#173631]">Set · {formatCompact(5340)}</p></div>
-                    <div className="px-3"><p className="fin-eyebrow">Média poupada</p><p className="mt-1 font-mono text-xs font-bold text-[#173631]">{formatCurrency(2210)}</p></div>
-                    <div className="pl-3"><p className="fin-eyebrow">Próximo marco</p><p className="mt-1 text-xs font-bold text-[#218766]">Meta em 74%</p></div>
+                    <div className="pr-3"><p className="fin-eyebrow">Entradas</p><p className="mt-1 font-mono text-xs font-bold text-[#173631]">{formatCompact(totals.income)}</p></div>
+                    <div className="px-3"><p className="fin-eyebrow">Poupado</p><p className="mt-1 font-mono text-xs font-bold text-[#173631]">{formatCurrency(Math.max(totals.balance, 0))}</p></div>
+                    <div className="pl-3"><p className="fin-eyebrow">Cofrinho</p><p className="mt-1 text-xs font-bold text-[#218766]">Meta em {cofrinhoProgress}%</p></div>
                   </div>
                 </article>
 
@@ -623,8 +656,8 @@ export default function Home() {
           {(page === "expenses" || page === "income") && (
             <>
               <section className="grid gap-4 md:grid-cols-3">
-                <StatCard label={page === "expenses" ? "Despesas do mês" : "Receitas do mês"} value={formatCurrency(page === "expenses" ? totals.expenses : totals.income)} note={page === "expenses" ? "Em 9 lançamentos" : "Em 5 recebimentos"} icon={page === "expenses" ? ArrowUpRight : ArrowDownRight} tone={page === "expenses" ? "coral" : "mint"} />
-                <StatCard label={page === "expenses" ? "Limite restante" : "Previsto até o fim"} value={page === "expenses" ? formatCurrency(2480) : formatCurrency(1250)} note={page === "expenses" ? "46% do orçamento" : "Projetos e recorrências"} icon={page === "expenses" ? WalletCards : Landmark} tone={page === "expenses" ? "gold" : "teal"} />
+                <StatCard label={page === "expenses" ? "Despesas do mês" : "Receitas do mês"} value={formatCurrency(page === "expenses" ? totals.expenses : totals.income)} note={`${visibleTransactions.length} lançamentos em ${selectedMonth.toLowerCase()}`} icon={page === "expenses" ? ArrowUpRight : ArrowDownRight} tone={page === "expenses" ? "coral" : "mint"} />
+                <StatCard label={page === "expenses" ? "Saldo após despesas" : "Saldo disponível"} value={formatCurrency(totals.balance)} note={page === "expenses" ? "Entradas menos saídas" : "Receitas menos despesas"} icon={page === "expenses" ? WalletCards : Landmark} tone={page === "expenses" ? "gold" : "teal"} />
                 <article className="relative min-h-[155px] overflow-hidden rounded-[1.25rem] bg-[#E5F3EC] p-5">
                   {page === "income" && <img src={incomeArtUrl} alt="Composição abstrata associada a entradas financeiras" className="absolute inset-0 h-full w-full object-cover object-right opacity-35 mix-blend-multiply" />}
                   <div className="relative"><p className="fin-eyebrow text-[#52736A]">Leitura rápida</p><p className="mt-3 max-w-[15rem] font-display text-xl leading-tight tracking-[-0.04em] text-[#1F5146]">{page === "expenses" ? "Alimentação lidera suas despesas no período." : "Seu principal recebimento chegou dentro do prazo."}</p></div>
@@ -633,10 +666,10 @@ export default function Home() {
 
               <section className="fin-panel mt-4 p-5 sm:p-6">
                 <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-                  <div><p className="fin-eyebrow">Lançamentos de setembro</p><h2 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[#173631]">{page === "expenses" ? "Saídas registradas" : "Entradas registradas"}</h2></div>
+                  <div><p className="fin-eyebrow">Lançamentos de {selectedMonth.toLowerCase()}</p><h2 className="mt-1 font-display text-2xl tracking-[-0.04em] text-[#173631]">{page === "expenses" ? "Saídas registradas" : "Entradas registradas"}</h2></div>
                   <div className="flex gap-2"><div className="flex items-center gap-2 border border-[#DAE5E1] bg-[#FAFCFB] px-3 text-xs text-[#77908A]"><Search className="h-3.5 w-3.5" /> <input aria-label="Buscar lançamento" placeholder="Buscar" className="w-20 bg-transparent py-2 outline-none placeholder:text-[#8A9995]" /></div><button type="button" onClick={() => toast.info("Os filtros detalhados estarão disponíveis em breve.")} className="border border-[#DAE5E1] bg-white px-3 text-xs font-bold text-[#516B63]">Filtrar</button></div>
                 </div>
-                <div className="mt-6"><div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(100px,0.7fr)_120px_112px] gap-3 border-b border-[#DDE7E3] pb-3 text-[0.62rem] font-bold uppercase tracking-[0.13em] text-[#85938E] md:grid"><span>Movimentação</span><span>Categoria</span><span>Data</span><span className="text-right">Valor</span></div>{filteredTransactions.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />)}</div>
+                <div className="mt-6"><div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(100px,0.7fr)_120px_112px] gap-3 border-b border-[#DDE7E3] pb-3 text-[0.62rem] font-bold uppercase tracking-[0.13em] text-[#85938E] md:grid"><span>Movimentação</span><span>Categoria</span><span>Data</span><span className="text-right">Valor</span></div>{filteredTransactions.length ? filteredTransactions.map((transaction) => <TransactionRow key={transaction.id} transaction={transaction} />) : <p className="py-10 text-center text-sm text-[#82918D]">Nenhum lançamento salvo em {selectedMonth.toLowerCase()}.</p>}</div>
               </section>
             </>
           )}
@@ -666,7 +699,7 @@ export default function Home() {
                 <img src={goalArtUrl} alt="Colagem abstrata que representa um cofrinho" className="absolute inset-0 h-full w-full object-cover object-right opacity-70 mix-blend-multiply" />
                 <div className="absolute inset-0 bg-gradient-to-r from-[#F4EBD9] via-[#F4EBD9]/90 to-[#F4EBD9]/15" />
                 <div className="relative flex h-full max-w-[260px] flex-col justify-between">
-                  <div><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C49B43]/20 text-[#937028]"><Sparkles className="h-5 w-5" /></span><p className="mt-5 fin-eyebrow text-[#806A46]">Próximo passo</p><h3 className="mt-1 font-display text-[1.8rem] leading-[1.02] tracking-[-0.04em] text-[#3E3728]">Pequenos depósitos fazem diferença.</h3><p className="mt-3 text-sm leading-relaxed text-[#786B50]">Guardando {formatCurrency(350)} por semana, você chega mais perto da sua meta sem apertar o mês.</p></div>
+                  <div><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C49B43]/20 text-[#937028]"><Sparkles className="h-5 w-5" /></span><p className="mt-5 fin-eyebrow text-[#806A46]">Próximo passo</p><h3 className="mt-1 font-display text-[1.8rem] leading-[1.02] tracking-[-0.04em] text-[#3E3728]">Pequenos depósitos fazem diferença.</h3><p className="mt-3 text-sm leading-relaxed text-[#786B50]">Adicione um valor quando puder e acompanhe sua reserva sem apertar o mês.</p></div>
                   <p className="text-xs font-bold text-[#806A46]">Faltam {formatCurrency(Math.max(cofrinhoGoal - cofrinhoAmount, 0))} para completar.</p>
                 </div>
               </article>
