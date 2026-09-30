@@ -12,15 +12,14 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
-  Goal,
   Grid2X2,
   Landmark,
   Menu,
   MoreHorizontal,
+  PiggyBank,
   Plus,
   ReceiptText,
   Search,
-  Settings2,
   Sparkles,
   Target,
   WalletCards,
@@ -31,8 +30,6 @@ import {
 import {
   Area,
   AreaChart,
-  Bar,
-  BarChart,
   Cell,
   Pie,
   PieChart,
@@ -52,7 +49,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Page = "dashboard" | "expenses" | "income" | "planning";
+type Page = "dashboard" | "expenses" | "income" | "savings";
 type TransactionKind = "income" | "expense";
 
 type Transaction = {
@@ -270,6 +267,11 @@ export default function Home() {
   const [category, setCategory] = useState("");
   const [amount, setAmount] = useState("");
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions);
+  const [cofrinhoAmount, setCofrinhoAmount] = useState(8460);
+  const [cofrinhoDeposit, setCofrinhoDeposit] = useState("");
+
+  const cofrinhoGoal = 12000;
+  const cofrinhoProgress = Math.min(100, Math.round((cofrinhoAmount / cofrinhoGoal) * 100));
 
   const totals = useMemo(() => {
     const newIncome = transactions.filter((item) => item.id > 5 && item.kind === "income").reduce((sum, item) => sum + item.value, 0);
@@ -285,7 +287,7 @@ export default function Home() {
     dashboard: "Visão geral",
     expenses: "Minhas despesas",
     income: "Minhas receitas",
-    planning: "Planejamento",
+    savings: "Cofrinho",
   };
 
   const filteredTransactions = page === "expenses"
@@ -322,6 +324,17 @@ export default function Home() {
     toast.success(transactionType === "income" ? "Receita registrada no seu saldo." : "Despesa registrada no seu saldo.");
   };
 
+  const addToCofrinho = () => {
+    const normalizedAmount = Number(cofrinhoDeposit.replace(",", "."));
+    if (!normalizedAmount || normalizedAmount <= 0) {
+      toast.error("Digite um valor válido para guardar.");
+      return;
+    }
+    setCofrinhoAmount((current) => current + normalizedAmount);
+    setCofrinhoDeposit("");
+    toast.success(`${formatCurrency(normalizedAmount)} guardados no seu cofrinho.`);
+  };
+
   const changePage = (nextPage: Page) => {
     setPage(nextPage);
     setMenuOpen(false);
@@ -337,7 +350,7 @@ export default function Home() {
       ? "Confira cada saída e preserve seu ritmo financeiro."
       : page === "income"
         ? "Acompanhe seus recebimentos e próximas entradas."
-        : "Transforme intenção em uma rota financeira possível.";
+        : "Guarde um pouco por vez e acompanhe sua reserva com tranquilidade.";
 
   return (
     <div className="relative min-h-screen bg-[#F4F7F5] text-[#173631] lg:flex">
@@ -366,15 +379,8 @@ export default function Home() {
           <NavItem active={page === "dashboard"} icon={Grid2X2} label="Visão geral" onClick={() => changePage("dashboard")} />
           <NavItem active={page === "expenses"} icon={ReceiptText} label="Minhas despesas" onClick={() => changePage("expenses")} />
           <NavItem active={page === "income"} icon={CircleDollarSign} label="Minhas receitas" onClick={() => changePage("income")} />
-          <NavItem active={page === "planning"} icon={Goal} label="Planejamento" onClick={() => changePage("planning")} />
+          <NavItem active={page === "savings"} icon={PiggyBank} label="Cofrinho" onClick={() => changePage("savings")} />
         </nav>
-
-        <div className="mt-7 space-y-1 border-t border-white/15 pt-6">
-          <p className="px-4 pb-2 text-[0.62rem] font-bold uppercase tracking-[0.2em] text-white/35">Ferramentas</p>
-          <button type="button" onClick={() => toast.info("As configurações ficam a um clique de distância.")} className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-semibold text-white/55 transition hover:bg-white/5 hover:text-white">
-            <Settings2 className="h-4 w-4" /> Preferências
-          </button>
-        </div>
 
         <div className="mt-auto overflow-hidden rounded-[1.15rem] border border-white/12 bg-white/[0.08] p-4">
           <div className="flex items-start gap-3">
@@ -416,8 +422,8 @@ export default function Home() {
               <p className="max-w-xl text-sm leading-relaxed text-[#64756F]">{summarySubtitle}</p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {page !== "income" && <Button onClick={() => openTransaction("expense")} variant="outline" className="h-10 border-[#C9D9D4] bg-white px-4 text-xs font-bold text-[#254D45] hover:border-[#0E504C] hover:bg-[#EEF7F3]"> <ArrowUpRight className="mr-1.5 h-4 w-4" /> Nova despesa</Button>}
-              {page !== "expenses" && <Button onClick={() => openTransaction("income")} className="h-10 bg-[#0E504C] px-4 text-xs font-bold text-white shadow-[0_8px_20px_rgba(14,80,76,0.16)] hover:bg-[#0A403D]"> <Plus className="mr-1.5 h-4 w-4" /> Nova receita</Button>}
+              {page !== "income" && page !== "savings" && <Button onClick={() => openTransaction("expense")} variant="outline" className="h-10 border-[#C9D9D4] bg-white px-4 text-xs font-bold text-[#254D45] hover:border-[#0E504C] hover:bg-[#EEF7F3]"> <ArrowUpRight className="mr-1.5 h-4 w-4" /> Nova despesa</Button>}
+              {page !== "expenses" && page !== "savings" && <Button onClick={() => openTransaction("income")} className="h-10 bg-[#0E504C] px-4 text-xs font-bold text-white shadow-[0_8px_20px_rgba(14,80,76,0.16)] hover:bg-[#0A403D]"> <Plus className="mr-1.5 h-4 w-4" /> Nova receita</Button>}
             </div>
           </section>
 
@@ -559,10 +565,35 @@ export default function Home() {
             </>
           )}
 
-          {page === "planning" && (
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(330px,0.75fr)]">
-              <article className="fin-panel p-6 sm:p-7"><p className="fin-eyebrow">Mapa de setembro</p><h2 className="mt-1 font-display text-[2rem] tracking-[-0.045em] text-[#173631]">Seu dinheiro tem destino.</h2><p className="mt-3 max-w-xl text-sm leading-relaxed text-[#667772]">Você manteve o saldo positivo e está perto de concluir sua reserva. O próximo passo é proteger o valor que ainda pode ser poupado neste mês.</p><div className="mt-8 grid gap-4 sm:grid-cols-3"><div className="border-l-2 border-[#0E504C] bg-[#F2F7F4] p-4"><p className="fin-eyebrow">Disponível</p><p className="mt-2 font-display text-2xl tracking-[-0.04em]">{formatCurrency(2420)}</p></div><div className="border-l-2 border-[#C49B43] bg-[#FBF7EE] p-4"><p className="fin-eyebrow">Para metas</p><p className="mt-2 font-display text-2xl tracking-[-0.04em]">{formatCurrency(1250)}</p></div><div className="border-l-2 border-[#E98470] bg-[#FDF3F0] p-4"><p className="fin-eyebrow">Compromissos</p><p className="mt-2 font-display text-2xl tracking-[-0.04em]">{formatCurrency(720)}</p></div></div><div className="mt-9 h-[230px]"><ResponsiveContainer width="100%" height="100%"><BarChart data={monthlyData} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}><XAxis dataKey="month" tickLine={false} axisLine={false} tick={{ fill: "#82918D", fontSize: 11, fontWeight: 700 }} /><YAxis tickLine={false} axisLine={false} tickFormatter={(value) => `R$${value / 1000}k`} tick={{ fill: "#82918D", fontSize: 10 }} /><Tooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{ border: "1px solid #D9E6E1", borderRadius: 12, fontSize: 12 }} /><Bar dataKey="entradas" fill="#0E504C" radius={[4, 4, 0, 0]} /><Bar dataKey="saídas" fill="#E9A695" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></article>
-              <article className="relative overflow-hidden rounded-[1.35rem] bg-[#EAF4EE] p-6"><img src={incomeArtUrl} alt="Arte abstrata de planejamento financeiro" className="absolute inset-0 h-full w-full object-cover opacity-35 mix-blend-multiply" /><div className="relative flex h-full flex-col"><span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/70 text-[#0E504C]"><Sparkles className="h-5 w-5" /></span><p className="mt-5 fin-eyebrow text-[#4D6B62]">Próximo passo</p><h3 className="mt-1 font-display text-[1.8rem] leading-[1.02] tracking-[-0.04em] text-[#1B4A40]">Separe sua reserva antes de gastar.</h3><p className="mt-3 max-w-[260px] text-sm leading-relaxed text-[#4E6F65]">Ao proteger R$ 350 nesta semana, sua meta chega a 74% de conclusão.</p><Button onClick={() => toast.success("Lembrete de reserva agendado para sexta-feira.")} className="mt-auto w-fit bg-[#0E504C] text-xs font-bold text-white hover:bg-[#0A403D]">Criar lembrete</Button></div></article>
+          {page === "savings" && (
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+              <article className="fin-panel p-6 sm:p-7">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="fin-eyebrow">Seu cofrinho</p>
+                    <h2 className="mt-1 font-display text-[2rem] tracking-[-0.045em] text-[#173631]">Reserva de tranquilidade</h2>
+                    <p className="mt-3 max-w-xl text-sm leading-relaxed text-[#667772]">Guarde um pouco por vez para construir uma reserva sem complicação.</p>
+                  </div>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#DDF8ED] text-[#0E504C]"><PiggyBank className="h-5 w-5" /></span>
+                </div>
+                <div className="mt-8 rounded-[1rem] bg-[#F2F7F4] p-5">
+                  <div className="flex items-end justify-between gap-3"><div><p className="fin-eyebrow">Guardado</p><p className="mt-2 font-display text-[2.6rem] leading-none tracking-[-0.05em] text-[#173631]">{formatCurrency(cofrinhoAmount)}</p></div><span className="text-sm font-extrabold text-[#218766]">{cofrinhoProgress}%</span></div>
+                  <div className="mt-5 h-3 overflow-hidden rounded-full bg-[#D4E5DC]"><div className="h-full rounded-full bg-[#0E504C] transition-all duration-300" style={{ width: `${cofrinhoProgress}%` }} /></div>
+                  <div className="mt-3 flex justify-between gap-3 text-xs font-semibold text-[#71837C]"><span>Começo</span><span>Meta: {formatCurrency(cofrinhoGoal)}</span></div>
+                </div>
+                <div className="mt-6 border-t border-[#E1EBE7] pt-5">
+                  <p className="text-sm font-extrabold text-[#173631]">Adicionar ao cofrinho</p>
+                  <div className="mt-3 flex flex-col gap-2 sm:flex-row"><Input aria-label="Valor para guardar" type="number" min="0" step="0.01" value={cofrinhoDeposit} onChange={(event) => setCofrinhoDeposit(event.target.value)} placeholder="Ex.: 50,00" className="h-11 border-[#D5E3DE] bg-white focus-visible:ring-[#0E504C]" /><Button onClick={addToCofrinho} className="h-11 bg-[#0E504C] px-5 text-xs font-bold text-white hover:bg-[#0A403D]">Guardar valor</Button></div>
+                </div>
+              </article>
+              <article className="relative min-h-[330px] overflow-hidden rounded-[1.35rem] bg-[#F1E8D7] p-6">
+                <img src={goalArtUrl} alt="Colagem abstrata que representa um cofrinho" className="absolute inset-0 h-full w-full object-cover object-right opacity-70 mix-blend-multiply" />
+                <div className="absolute inset-0 bg-gradient-to-r from-[#F4EBD9] via-[#F4EBD9]/90 to-[#F4EBD9]/15" />
+                <div className="relative flex h-full max-w-[260px] flex-col justify-between">
+                  <div><span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#C49B43]/20 text-[#937028]"><Sparkles className="h-5 w-5" /></span><p className="mt-5 fin-eyebrow text-[#806A46]">Próximo passo</p><h3 className="mt-1 font-display text-[1.8rem] leading-[1.02] tracking-[-0.04em] text-[#3E3728]">Pequenos depósitos fazem diferença.</h3><p className="mt-3 text-sm leading-relaxed text-[#786B50]">Guardando {formatCurrency(350)} por semana, você chega mais perto da sua meta sem apertar o mês.</p></div>
+                  <p className="text-xs font-bold text-[#806A46]">Faltam {formatCurrency(Math.max(cofrinhoGoal - cofrinhoAmount, 0))} para completar.</p>
+                </div>
+              </article>
             </section>
           )}
         </div>
