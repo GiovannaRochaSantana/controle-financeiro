@@ -9,23 +9,30 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
-function isPortAvailable(port: number): Promise<boolean> {
-  return new Promise(resolve => {
-    const server = net.createServer();
-    server.listen(port, () => {
-      server.close(() => resolve(true));
-    });
-    server.on("error", () => resolve(false));
-  });
-}
+function listenOnAvailablePort(server: ReturnType<typeof createServer>, startPort: number = 3000): Promise<number> {
+  return new Promise((resolve, reject) => {
+    let currentPort = startPort;
 
-async function findAvailablePort(startPort: number = 3000): Promise<number> {
-  for (let port = startPort; port < startPort + 20; port++) {
-    if (await isPortAvailable(port)) {
-      return port;
-    }
-  }
-  throw new Error(`No available port found starting from ${startPort}`);
+    const tryListen = () => {
+      server.once("error", onError);
+      server.listen(currentPort, () => {
+        server.removeListener("error", onError);
+        resolve(currentPort);
+      });
+    };
+
+    const onError = (err: NodeJS.ErrnoException) => {
+      server.removeListener("error", onError);
+      if (err.code === "EADDRINUSE" && currentPort < startPort + 20) {
+        currentPort++;
+        tryListen();
+      } else {
+        reject(err);
+      }
+    };
+
+    tryListen();
+  });
 }
 
 async function startServer() {
@@ -52,15 +59,13 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const port = await listenOnAvailablePort(server, preferredPort);
 
   if (port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
-  });
+  console.log(`Server running on http://localhost:${port}/`);
 }
 
 startServer().catch(console.error);
